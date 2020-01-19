@@ -15,4 +15,4 @@
 2. デスクトップのアイコンをダブルクリック、または設定したショートカットキーを押す
 3. PowerShellウィンドウが表示され、マウスカーソルの位置に対象のウィンドウが移動します
 ## Remarks
-Powershell 6(pwsh.exe)では現時点でWindows GUI ライブラリがサポートされていないので動きません
+PowerShell 6(pwsh.exe)では現時点でWindows GUI ライブラリがサポートされていないので動きません
