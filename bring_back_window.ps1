@@ -42,7 +42,7 @@ function EnumWindows
     }
 }
 # ウィンドウタイトルが空でないプロセスハンドラを取得
-$handles = Get-Process | Where-Object { $_.MainWindowTitle -ne "" } | Foreach-Object { $_.MainWindowHandle }
+$handles = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | Foreach-Object { $_.MainWindowHandle }
 if ($null -eq $handles -Or $handles.Length -lt 2)
 {
     return
