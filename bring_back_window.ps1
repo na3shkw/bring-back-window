@@ -1,3 +1,4 @@
+using module ./move_window.psd1
 Add-Type @'
     using System;
     using System.Text;
@@ -60,36 +61,19 @@ function EnumWindows
     }
 }
 # ウィンドウタイトルが空でないプロセスハンドラを取得
-$handles = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 } | Foreach-Object { $_.MainWindowHandle }
+$handles = Get-Process | Where-Object { $_.MainWindowTitle -ne "" } | Foreach-Object { $_.MainWindowHandle }
 if ($null -eq $handles)
 {
     return
 }
+# Explorerウィンドウの取得
+$shellApps = New-Object -com "Shell.Application"
+$shellApps = $shellApps.windows() | select-object -Property Top, Left, Width, Height, HWND
 # Zオーダーで2番目にあるウィンドウのハンドラ取得
 # $handle = EnumWindows | Where-Object { $handles.Contains($_) } | Select-Object -First 2
 # $hwnd = $handle[1]
-$cursor = [System.Windows.Forms.Cursor]::Position
 $window = New-Object RECT
-$screens = [System.Windows.Forms.Screen]::AllScreens
-# カーソルの位置を取得し、移動後のウィンドウサイズを決定
-foreach ($screen in $screens)
-{
-    $bound = $screen.Bounds
-    $left = $bound.Left
-    $top = $bound.Top
-    $right = $bound.Right
-    $bottom = $bound.Bottom
-    if ($left -lt $cursor.X -And $cursor.X -lt $right)
-    {
-        if ($top -lt $cursor.Y -And $cursor.Y -lt $bottom)
-        {
-            # $width = $right - $cursor.X
-            # $height = $bottom - $cursor.Y
-            $destScreen = $screen.DeviceName
-            break
-        }
-    }
-}
+$moveWindow = New-Object -TypeName "MoveWindow"
 $stringbuilder = New-Object System.Text.StringBuilder 256
 # カーソルのないスクリーンにあるウィンドウをすべて移動
 foreach ($hwnd in $handles) {
@@ -100,7 +84,6 @@ foreach ($hwnd in $handles) {
         [ref]$window,
         [System.Runtime.InteropServices.Marshal]::SizeOf($window)
     )
-    $fromScreen = ""
     $count = [Win32]::GetWindowText($hwnd, $stringbuilder, 256)
     if ([int]$count -gt 0 ) {
         $name = $stringbuilder.ToString()
@@ -109,30 +92,12 @@ foreach ($hwnd in $handles) {
         $name = $name.ProcessName
     }
     Write-Host([String]$name + ": (" + [String]$window.Left + ", " + [String]$window.Top + ")")
-    foreach ($screen in $screens)
-    {
-        $bound = $screen.Bounds
-        $left = $bound.Left
-        $top = $bound.Top
-        $right = $bound.Right
-        $bottom = $bound.Bottom
-        if ($left -le $window.Left -And $window.Left -le $right)
-        {
-            if ($top -le $window.Top -And $window.Top -le $bottom)
-            {
-                $fromScreen = $screen.DeviceName
-                break
-            }
-        }
-    }
-    # 移動元と移動先のスクリーンが同じなら何もしない
-    if ($destScreen -eq $fromScreen) {
-        continue
-    }
-    # ウィンドウを最前面に
-    $null = [Win32]::SetForegroundWindow($hwnd)
-    # ウィンドウ移動
-    $width = $window.Right - $window.Left
-    $height = $window.Bottom - $window.Top
-    $null = [Win32]::MoveWindow($hwnd, $cursor.X, $cursor.Y, $width, $height, $true)
+    Write-Host($hwnd)
+    $null = $moveWindow.ToVisibleArea(
+        $hwnd,
+        $window.Left,
+        $window.Top,
+        $window.Right - $window.Left,
+        $window.Bottom - $window.Top
+    )
 }
