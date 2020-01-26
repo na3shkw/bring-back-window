@@ -1,14 +1,10 @@
 Add-Type @'
     using System;
-    using System.Text;
     using System.Runtime.InteropServices;
 
     public class Win32 {
         [DllImport("dwmapi.dll")]
         public static extern int DwmGetWindowAttribute(IntPtr hWnd, int dwAttribute, out RECT lpRect, int cbAttribute);
-
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
 
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -36,7 +32,7 @@ Add-Type -AssemblyName System.Windows.Forms
 function moveWindowToVisibleArea(
     [IntPtr] $Hwnd,
     [System.Windows.Forms.Screen[]] $screens,
-    [String]$destScreen,
+    [System.Windows.Forms.Screen[]] $destScreen,
     [int] $Left,
     [int] $Top,
     [int] $Width,
@@ -56,13 +52,13 @@ function moveWindowToVisibleArea(
         }
     }
     # 移動元と移動先のスクリーンが同じ場合は何もしない
-    if ($destScreen -eq $fromScreen) {
+    if ($destScreen.DeviceName -eq $fromScreen) {
         return $false
     }
     # ウィンドウを最前面に
     $null = [Win32]::SetForegroundWindow($hwnd)
     # ウィンドウ移動
-    $null = [Win32]::MoveWindow($hwnd, $this.dest.X, $this.dest.Y, $Width, $Height, $true)
+    $null = [Win32]::MoveWindow($hwnd, $destScreen.WorkingArea.X, $destScreen.WorkingArea.Y, $Width, $Height, $true)
     return $true
 }
 
@@ -77,11 +73,7 @@ $shellApps = New-Object -com "Shell.Application"
 $shellApps = $shellApps.windows() | select-object -Property Top, Left, Width, Height, HWND
 
 # カーソル位置と移動先の取得
-[String] $destScreen
-[hashtable] $dest = @{
-    X = 0;
-    Y = 0;
-}
+[System.Windows.Forms.Screen[]] $destScreen
 $screens = [System.Windows.Forms.Screen]::AllScreens
 $cursor = [System.Windows.Forms.Cursor]::Position
 # カーソルの位置を取得し、移動後のウィンドウサイズを決定
@@ -96,14 +88,11 @@ foreach ($screen in $screens)
     {
         if ($top -lt $cursor.Y -And $cursor.Y -lt $bottom)
         {
-            $destScreen = $screen.DeviceName
-            $dest.X = $screen.WorkingArea.X
-            $dest.Y = $screen.WorkingArea.Y
+            $destScreen = $screen
             break
         }
     }
 }
-
 $window = New-Object RECT
 $stringbuilder = New-Object System.Text.StringBuilder 256
 # カーソルのないスクリーンにあるウィンドウをすべて移動
@@ -114,21 +103,11 @@ foreach ($hwnd in $handles) {
         [ref]$window,
         [System.Runtime.InteropServices.Marshal]::SizeOf($window)
     )
-    $count = [Win32]::GetWindowText($hwnd, $stringbuilder, 256)
-    if ([int]$count -gt 0 ) {
-        $name = $stringbuilder.ToString()
-    }
-    Write-Host([String]$name + ": (" + [String]$window.Left + ", " + [String]$window.Top + ")")
     $width = $window.Right - $window.Left
     $height = $window.Bottom - $window.Top
     $null = moveWindowToVisibleArea $hwnd $screens $destScreen $window.Left $window.Top $width $height
 }
 # エクスプローラウィンドウの移動
 foreach ($app in $shellApps) {
-    $count = [Win32]::GetWindowText($app.HWND, $stringbuilder, 256)
-    if ([int]$count -gt 0 ) {
-        $name = $stringbuilder.ToString()
-    }
-    Write-Host([String]$name + ": (" + [String]$app.Left + ", " + [String]$app.Top + ")")
     $null = moveWindowToVisibleArea $app.HWND $screens $destScreen $app.Left $app.Top $app.Width $app.Height
 }
